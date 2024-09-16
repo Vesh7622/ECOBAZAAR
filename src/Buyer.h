@@ -1,4 +1,4 @@
-*#ifndef BUYER_H
+#ifndef BUYER_H
 #define BUYER_H
 
 void buyerMenu();

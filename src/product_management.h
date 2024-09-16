@@ -17,5 +17,23 @@ void registerUser();
 int loginUser();
 void loadData();
 void saveData();
+#ifndef PRODUCT_MANAGEMENT_H
+#define PRODUCT_MANAGEMENT_H
 
+#define MAX_PRODUCTS 100  // You can change this as needed
+
+typedef struct {
+    char name[50];
+    float price;
+    int quantity;
+} Product;
+
+void addProduct();
+void updateProduct();
+void deleteProduct();
+void viewProducts();
+void loadProducts();
+void saveProducts();
+
+#endif
 #endif
