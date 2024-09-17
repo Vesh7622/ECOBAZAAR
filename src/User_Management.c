@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <string.h>
 #include "user_management.h"
+#include "user_management.h"
+
+User *currentUser;  // Declare currentUser globally
+
 
 User users[MAX_USERS];
 int userCount = 0;
