@@ -6,11 +6,16 @@
 
 // Assuming these functions are already defined in your respective modules.
 extern User *currentUser; // Ensure currentUser is accessible globally
-
-void mainMenu() {
+void postLoginMenu();
+void viewProducts();
+void addProduct();
+void buyProduct();
+void sellProduct();
+void mainMenu()
+ {
     int choice;
     do {
-        printf("\nWelcome to the Online Retail Shop!\n");
+        printf("\nWelcombuil    e to the Online Retail Shop!\n");
         printf("1. Register\n");
         printf("2. Login\n");
         printf("3. Exit\n");
