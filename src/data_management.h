@@ -1,2 +1,0 @@
-void loadData();
-void saveData();

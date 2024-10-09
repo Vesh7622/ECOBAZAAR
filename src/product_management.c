@@ -1,59 +1,98 @@
 #include <stdio.h>
 #include <string.h>
+#include <curses.h>
 #include "product_management.h"
 
-Product products[MAX_PRODUCTS];
-int productCount = 0;
+#define MAX_PRODUCTS 100
 
-void addProduct() {
-    if (productCount >= MAX_PRODUCTS) {
-        printf("Product limit reached. Cannot add more products.\n");
-        return;
-    }
-    
-    Product newProduct;
-    
-    printf("Enter product name: ");
-    scanf("%s", newProduct.name);
-    printf("Enter product price: ");
-    scanf("%f", &newProduct.price);
-    printf("Enter product quantity: ");
-    scanf("%d", &newProduct.quantity);
-    
-    products[productCount] = newProduct;
-    productCount++;
-    
-    printf("Product added successfully!\n");
-}
+Product products[MAX_PRODUCTS];  // Define products as an array of Product structs
+int product_count = 0;           // Define product_count
 
-void updateProduct() {
-    // Implementation for updating product
-}
-
-void deleteProduct() {
-    // Implementation for deleting product
-}
-
-void viewProducts() {
-    for (int i = 0; i < productCount; i++) {
-        printf("%s - $%.2f (Quantity: %d)\n", products[i].name, products[i].price, products[i].quantity);
-    }
-}
-
-void loadProducts() {
-    FILE *file = fopen("products.dat", "rb");
+// Load products from file with error handling
+void load_products() {
+    FILE *file = fopen("products.txt", "r");
     if (file == NULL) {
-        printf("No product data found. Starting fresh.\n");
-        return;
+        perror("Error opening products.txt. No products available yet.");
+        return; // If file doesn't exist, handle gracefully
     }
-    fread(&productCount, sizeof(int), 1, file);
-    fread(products, sizeof(Product), productCount, file);
+
+    product_count = 0; // Reset product count on load
+    while (fscanf(file, "%d %s %lf %d", &products[product_count].id, products[product_count].name, &products[product_count].price, &products[product_count].stock) != EOF) {
+        product_count++;
+        if (product_count >= MAX_PRODUCTS) {
+            fprintf(stderr, "Error: Maximum product limit reached.\n");
+            break;
+        }
+    }
+
     fclose(file);
 }
 
-void saveProducts() {
-    FILE *file = fopen("products.dat", "wb");
-    fwrite(&productCount, sizeof(int), 1, file);
-    fwrite(products, sizeof(Product), productCount, file);
+// Save products to file with error handling
+void save_products() {
+    FILE *file = fopen("products.txt", "w");
+    if (file == NULL) {
+        perror("Error opening products.txt for writing.");
+        return;
+    }
+
+    for (int i = 0; i < product_count; i++) {
+        fprintf(file, "%d %s %.2lf %d\n", products[i].id, products[i].name, products[i].price, products[i].stock);
+    }
+
     fclose(file);
 }
+
+// Add product to list and save
+void add_product(char *name, double price, int stock) {
+    products[product_count].id = product_count + 1;
+    strcpy(products[product_count].name, name);
+    products[product_count].price = price;
+    products[product_count].stock = stock;
+    product_count++;
+    save_products(); // Save products after adding
+    printf("Product '%s' added successfully!\n", name);
+}
+
+// Sell product (reduce stock) with input validation
+void sell_product(int product_id, int quantity) {
+    if (product_count == 0) {
+        printf("No products available.\n");
+        return;
+    }
+
+    for (int i = 0; i < product_count; i++) {
+        if (products[i].id == product_id) {
+            if (products[i].stock < quantity) {
+                printf("Insufficient stock for product '%s'. Only %d available.\n", products[i].name, products[i].stock);
+                return;
+            }
+            products[i].stock -= quantity; // Reduce stock
+            save_products(); // Save updated stock to file
+            printf("Sold %d of '%s'. Stock remaining: %d\n", quantity, products[i].name, products[i].stock);
+            return;
+        }
+    }
+
+    printf("Product not found.\n");
+}
+
+// List all products
+void list_products() {
+    if (product_count == 0) {
+      printw("No products available.\n");
+      refresh();
+      getch();
+      endwin();
+      return;
+    }
+
+    int i = 0;
+    mvprintw(0, 5, "ID\tName\tPrice\tStock\n");
+    for (i = 0; i < product_count; i++) {
+        mvprintw(i + 1, 5, "%d\t%s\t%.2lf\t%d\n", products[i].id, products[i].name, products[i].price, products[i].stock);
+    }
+
+    mvprintw(i + 2, 5, "Press any key to go back.");
+}
+
