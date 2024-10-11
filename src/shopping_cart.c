@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <curses.h>  // Or <pdcurses.h> for PDCurses
+#include <curses.h>
 #include "product_management.h"
+#include "shopping_cart.h"
 
 #define MAX_CART_ITEMS 100
 
@@ -13,6 +14,7 @@ typedef struct {
 
 CartItem cart[MAX_CART_ITEMS];
 int cart_count = 0;
+double total_price = 0.0;  // Running total for the cart
 char cart_filename[100];
 
 // Load cart from a file associated with the current user
@@ -22,15 +24,24 @@ void load_cart(const char *username) {
 
     if (file == NULL) {
         cart_count = 0;
+        total_price = 0.0;  // Reset total price
         return;
     }
 
     cart_count = 0;
-    while (fscanf(file, "%d %d", &cart[cart_count].product_id, &cart[cart_count].quantity) != EOF) {
+    total_price = 0.0;  // Reset total price
+
+    int product_id, quantity;
+    while (fscanf(file, "%d %d", &product_id, &quantity) != EOF) {
+        cart[cart_count].product_id = product_id;
+        cart[cart_count].quantity = quantity;
         cart_count++;
-        if (cart_count >= MAX_CART_ITEMS) {
-            mvprintw(5, 5, "Error: Maximum cart limit reached.");
-            break;
+
+        for (int i = 0; i < product_count; i++) {
+            if (products[i].id == product_id) {
+                total_price += products[i].price * quantity;  // Calculate total price
+                break;
+            }
         }
     }
 
@@ -42,7 +53,7 @@ void save_cart() {
     FILE *file = fopen(cart_filename, "w");
 
     if (file == NULL) {
-        mvprintw(5, 5, "Error saving the shopping cart.");
+        mvprintw(5, 5, "Error saving the shopping cart.\n");
         refresh();
         return;
     }
@@ -54,7 +65,7 @@ void save_cart() {
     fclose(file);
 }
 
-// Add product to cart and save it to the file
+// Add product to cart and update total price
 void add_to_cart(int product_id, int quantity) {
     if (quantity <= 0) {
         mvprintw(5, 5, "Error: Quantity must be greater than zero.");
@@ -62,41 +73,60 @@ void add_to_cart(int product_id, int quantity) {
         return;
     }
 
-    int product_exists = 0;
     for (int i = 0; i < product_count; i++) {
         if (products[i].id == product_id) {
-            product_exists = 1;
             if (products[i].stock < quantity) {
-                mvprintw(5, 5, "Error: Not enough stock available for '%s'. Stock: %d", products[i].name, products[i].stock);
+                mvprintw(5, 5, "Error: Not enough stock available for '%s'. Stock: %d\n", products[i].name, products[i].stock);
                 refresh();
                 return;
             }
-            break;
-        }
-    }
 
-    if (!product_exists) {
-        mvprintw(5, 5, "Error: Invalid product ID %d. Please try again.", product_id);
-        refresh();
-        return;
-    }
+            for (int j = 0; j < cart_count; j++) {
+                if (cart[j].product_id == product_id) {
+                    cart[j].quantity += quantity;
+                    total_price += products[i].price * quantity;  // Update total price
+                    save_cart();
+                    mvprintw(5, 5, "Updated cart: Added %d more of '%s'. Total: $%.2f\n", quantity, products[i].name, total_price);
+                    refresh();
+                    return;
+                }
+            }
 
-    for (int i = 0; i < cart_count; i++) {
-        if (cart[i].product_id == product_id) {
-            cart[i].quantity += quantity;
+            cart[cart_count].product_id = product_id;
+            cart[cart_count].quantity = quantity;
+            cart_count++;
+            total_price += products[i].price * quantity;  // Update total price
             save_cart();
-            mvprintw(5, 5, "Updated cart: Added %d more of product ID %d", quantity, product_id);
+            mvprintw(5, 5, "Added '%s' to cart. Total: $%.2f\n", products[i].name, total_price);
             refresh();
             return;
         }
     }
 
-    cart[cart_count].product_id = product_id;
-    cart[cart_count].quantity = quantity;
-    cart_count++;
-    save_cart();
-    mvprintw(5, 5, "Product ID %d added to cart with quantity %d", product_id, quantity);
+    mvprintw(5, 5, "Error: Invalid product ID %d. Please try again.\n", product_id);
     refresh();
+    getch();
+}
+
+// View items in the cart, including the running total
+void view_cart() {
+    if (cart_count == 0) {
+        mvprintw(5, 5, "Your cart is empty.\n");
+        refresh();
+        getch();
+        return;
+    }
+
+    mvprintw(2, 5, "Your Cart:");
+    mvprintw(3, 5, "Product ID\tQuantity");
+
+    for (int i = 0; i < cart_count; i++) {
+        mvprintw(4 + i, 5, "%d\t\t%d", cart[i].product_id, cart[i].quantity);
+    }
+
+    mvprintw(6 + cart_count, 5, "Total Price: $%.2f", total_price);
+    refresh();
+    getch();
 }
 
 // Modify the quantity of a product in the cart
@@ -111,63 +141,30 @@ void modify_cart_quantity(int product_id, int new_quantity) {
         if (cart[i].product_id == product_id) {
             for (int j = 0; j < product_count; j++) {
                 if (products[j].id == product_id && products[j].stock >= new_quantity) {
+                    total_price -= products[j].price * cart[i].quantity;
                     cart[i].quantity = new_quantity;
+                    total_price += products[j].price * new_quantity;
                     save_cart();
-                    mvprintw(5, 5, "Cart updated: Quantity of product ID %d set to %d", product_id, new_quantity);
+                    mvprintw(5, 5, "Cart updated: Quantity of product ID %d set to %d. Total: $%.2f\n", product_id, new_quantity, total_price);
                     refresh();
+                    getch();
                     return;
                 }
             }
-            mvprintw(5, 5, "Error: Insufficient stock for product ID %d.", product_id);
+            mvprintw(5, 5, "Error: Insufficient stock for product ID %d.\n", product_id);
             refresh();
+            getch();
             return;
         }
     }
-    mvprintw(5, 5, "Error: Product ID %d not found in cart.", product_id);
-    refresh();
-}
 
-// View items in the cart
-void view_cart() {
-    clear();
-    if (cart_count == 0) {
-        mvprintw(5, 5, "Your cart is empty.");
-        refresh();
-        getch();
-        return;
-    }
-
-    mvprintw(2, 5, "Your Cart:");
-    mvprintw(3, 5, "Product ID\tQuantity");
-    for (int i = 0; i < cart_count; i++) {
-        mvprintw(4 + i, 5, "%d\t\t%d", cart[i].product_id, cart[i].quantity);
-    }
-
+    mvprintw(5, 5, "Error: Product ID %d not found in cart.\n", product_id);
     refresh();
     getch();
 }
 
-// Remove an item from the cart and save the changes
-void remove_from_cart(int product_id) {
-    for (int i = 0; i < cart_count; i++) {
-        if (cart[i].product_id == product_id) {
-            for (int j = i; j < cart_count - 1; j++) {
-                cart[j] = cart[j + 1];
-            }
-            cart_count--;
-            save_cart();
-            mvprintw(5, 5, "Removed product ID %d from cart.", product_id);
-            refresh();
-            return;
-        }
-    }
-    mvprintw(5, 5, "Product ID %d not found in cart.", product_id);
-    refresh();
-}
-
 // Checkout process: updates stock and clears cart after purchase
 void checkout() {
-    clear();
     if (cart_count == 0) {
         mvprintw(5, 5, "Your cart is empty. Nothing to checkout.");
         refresh();
@@ -182,8 +179,7 @@ void checkout() {
         for (int j = 0; j < product_count; j++) {
             if (products[j].id == product_id) {
                 if (products[j].stock < cart_quantity) {
-                    mvprintw(5, 5, "Error: Insufficient stock for product '%s'. Stock: %d, Cart quantity: %d",
-                             products[j].name, products[j].stock, cart_quantity);
+                    mvprintw(5, 5, "Error: Insufficient stock for product '%s'.", products[j].name);
                     refresh();
                     getch();
                     return;
@@ -203,15 +199,12 @@ void checkout() {
         }
     }
 
-    save_products();
+    save_products();  // Save updated stock after checkout
     cart_count = 0;
+    total_price = 0.0;  // Reset total price after checkout
     save_cart();
 
     mvprintw(5, 5, "Checkout complete! Your cart has been purchased.");
     refresh();
     getch();
 }
-
-
-
-
